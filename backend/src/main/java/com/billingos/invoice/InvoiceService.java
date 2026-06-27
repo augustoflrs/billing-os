@@ -5,6 +5,10 @@ import com.billingos.branch.PointOfSaleRepository;
 import com.billingos.catalog.TaxDefinition;
 import com.billingos.catalog.TaxDefinitionRepository;
 import com.billingos.common.exception.ResourceNotFoundException;
+import com.billingos.common.outbox.OutboxEvent;
+import com.billingos.common.outbox.OutboxEventRepository;
+import com.billingos.common.status.EntityStatusHistoryRepository;
+import com.billingos.common.status.StatusMachineService;
 import com.billingos.customer.Customer;
 import com.billingos.customer.CustomerRepository;
 import com.billingos.invoice.InvoiceDto.*;
@@ -17,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,15 +30,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class InvoiceService {
 
-    private static final String DRAFT_STATUS_ID = "inv_draft";
-    private static final String ISSUED_STATUS_ID = "inv_issued";
-    private static final String CANCELLED_STATUS_ID = "inv_cancelled";
+    static final String DRAFT_STATUS_ID     = "inv_draft";
+    static final String ISSUED_STATUS_ID    = "inv_issued";
+    static final String CANCELLED_STATUS_ID = "inv_cancelled";
+    private static final String ENTITY_TYPE = "INVOICE";
 
     private final InvoiceRepository invoiceRepository;
     private final InvoiceSequenceRepository sequenceRepository;
     private final CustomerRepository customerRepository;
     private final PointOfSaleRepository pointOfSaleRepository;
     private final TaxDefinitionRepository taxDefinitionRepository;
+    private final StatusMachineService statusMachine;
+    private final OutboxEventRepository outboxRepository;
+    private final EntityStatusHistoryRepository statusHistoryRepository;
 
     @Transactional
     public InvoiceResponse create(CreateInvoiceRequest req) {
@@ -44,7 +53,8 @@ public class InvoiceService {
 
         Map<String, BigDecimal> taxRates = taxDefinitionRepository.findByActiveTrueOrderByName()
                 .stream()
-                .collect(Collectors.toMap(TaxDefinition::getCode, t -> t.getRate() != null ? t.getRate() : BigDecimal.ZERO));
+                .collect(Collectors.toMap(TaxDefinition::getCode,
+                        t -> t.getRate() != null ? t.getRate() : BigDecimal.ZERO));
 
         Invoice invoice = new Invoice();
         invoice.setCustomerId(customer.getId());
@@ -58,26 +68,27 @@ public class InvoiceService {
         BigDecimal totalTax = BigDecimal.ZERO;
 
         for (LineRequest lr : req.lines()) {
-            String name = resolveItemName(lr);
-            BigDecimal qty = lr.quantity();
-            BigDecimal unitPrice = lr.unitPrice();
+            if (lr.itemName() == null || lr.itemName().isBlank()) {
+                throw new IllegalArgumentException("itemName is required on each line");
+            }
+            BigDecimal qty      = lr.quantity();
+            BigDecimal price    = lr.unitPrice();
             BigDecimal discount = lr.discountAmount() != null ? lr.discountAmount() : BigDecimal.ZERO;
-
-            BigDecimal subtotal = qty.multiply(unitPrice).subtract(discount).setScale(4, RoundingMode.HALF_UP);
-            BigDecimal lineTax = BigDecimal.ZERO;
+            BigDecimal subtotal = qty.multiply(price).subtract(discount).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal lineTax  = BigDecimal.ZERO;
 
             InvoiceLine line = new InvoiceLine();
             line.setInvoice(invoice);
             line.setBillableItemId(lr.billableItemId());
-            line.setItemName(name);
+            line.setItemName(lr.itemName());
             line.setItemDescription(lr.itemDescription());
             line.setQuantity(qty);
-            line.setUnitPrice(unitPrice);
+            line.setUnitPrice(price);
             line.setSubtotalAmount(subtotal);
             line.setDiscountAmount(discount);
 
             if (lr.taxCode() != null && !lr.taxCode().isBlank()) {
-                BigDecimal rate = taxRates.getOrDefault(lr.taxCode(), BigDecimal.ZERO);
+                BigDecimal rate   = taxRates.getOrDefault(lr.taxCode(), BigDecimal.ZERO);
                 BigDecimal taxAmt = subtotal.multiply(rate).setScale(4, RoundingMode.HALF_UP);
 
                 InvoiceLineTax tax = new InvoiceLineTax();
@@ -87,7 +98,6 @@ public class InvoiceService {
                 tax.setTaxableAmount(subtotal);
                 tax.setTaxAmount(taxAmt);
                 line.getTaxes().add(tax);
-
                 lineTax = taxAmt;
             }
 
@@ -97,7 +107,7 @@ public class InvoiceService {
 
             totalSubtotal = totalSubtotal.add(subtotal);
             totalDiscount = totalDiscount.add(discount);
-            totalTax = totalTax.add(lineTax);
+            totalTax      = totalTax.add(lineTax);
         }
 
         BigDecimal total = totalSubtotal.add(totalTax);
@@ -114,14 +124,26 @@ public class InvoiceService {
     @Transactional
     public InvoiceResponse confirm(String id) {
         Invoice invoice = getOrThrow(id);
-        if (!DRAFT_STATUS_ID.equals(invoice.getCurrentStatusId())) {
-            throw new IllegalStateException("Only DRAFT invoices can be confirmed");
-        }
+
+        // Validate + write history/audit via status machine
+        statusMachine.transition(ENTITY_TYPE, id,
+                invoice.getCurrentStatusId(), ISSUED_STATUS_ID, "Invoice confirmed by user");
 
         String number = nextInvoiceNumber(invoice.getPointOfSaleId(), invoice.getDocumentTypeCode());
         invoice.setInvoiceNumber(number);
         invoice.setCurrentStatusId(ISSUED_STATUS_ID);
         invoiceRepository.save(invoice);
+
+        // Write outbox event for DTE pipeline (T-12–T-14)
+        OutboxEvent event = new OutboxEvent();
+        event.setAggregateType("INVOICE");
+        event.setAggregateId(id);
+        event.setEventType("INVOICE_CONFIRMED");
+        event.setPayload(Map.of(
+                "invoiceId", id,
+                "documentTypeCode", invoice.getDocumentTypeCode()
+        ));
+        outboxRepository.save(event);
 
         String customerName = customerRepository.findById(invoice.getCustomerId())
                 .map(Customer::getLegalName).orElse("");
@@ -129,12 +151,12 @@ public class InvoiceService {
     }
 
     @Transactional
-    public InvoiceResponse cancel(String id) {
+    public InvoiceResponse cancel(String id, String reason) {
         Invoice invoice = getOrThrow(id);
-        String status = invoice.getCurrentStatusId();
-        if (CANCELLED_STATUS_ID.equals(status)) {
-            throw new IllegalStateException("Invoice is already cancelled");
-        }
+
+        statusMachine.transition(ENTITY_TYPE, id,
+                invoice.getCurrentStatusId(), CANCELLED_STATUS_ID,
+                reason != null ? reason : "Invoice cancelled");
 
         invoice.setCurrentStatusId(CANCELLED_STATUS_ID);
         invoiceRepository.save(invoice);
@@ -153,10 +175,21 @@ public class InvoiceService {
     }
 
     @Transactional(readOnly = true)
-    public InvoicePageResponse list(String search, int page, int size) {
-        Page<Invoice> pg = invoiceRepository.search(search, PageRequest.of(page, size));
+    public InvoicePageResponse list(String search, String statusCode, String customerId,
+                                     LocalDate from, LocalDate to, int page, int size) {
+        String statusId = statusCode != null && !statusCode.isBlank()
+                ? statusCodeToId(statusCode) : null;
+        Instant fromInstant = from != null
+                ? from.atStartOfDay().toInstant(java.time.ZoneOffset.UTC)
+                : Instant.EPOCH;
+        Instant toInstant = to != null
+                ? to.plusDays(1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC)
+                : Instant.now().plusSeconds(60L * 60 * 24 * 365 * 100);
 
-        // Batch-load customer names
+        Page<Invoice> pg = invoiceRepository.search(
+                search, statusId, customerId, fromInstant, toInstant,
+                PageRequest.of(page, size));
+
         List<String> customerIds = pg.getContent().stream().map(Invoice::getCustomerId).distinct().toList();
         Map<String, String> customerNames = customerRepository.findAllById(customerIds)
                 .stream().collect(Collectors.toMap(Customer::getId, Customer::getLegalName));
@@ -168,16 +201,25 @@ public class InvoiceService {
         return new InvoicePageResponse(summaries, page, size, pg.getTotalElements(), pg.getTotalPages());
     }
 
+    @Transactional(readOnly = true)
+    public List<InvoiceDto.StatusHistoryEntry> statusHistory(String id) {
+        getOrThrow(id); // ensure exists
+        return statusHistoryRepository.findByEntityTypeAndEntityIdOrderByChangedAtAsc(ENTITY_TYPE, id)
+                .stream()
+                .map(h -> new InvoiceDto.StatusHistoryEntry(
+                        statusCode(h.getOldStatusId()),
+                        statusCode(h.getNewStatusId()),
+                        h.getChangedBy(),
+                        h.getChangedAt(),
+                        h.getReason()))
+                .toList();
+    }
+
     // ── helpers ──────────────────────────────────────────────────
 
     private Invoice getOrThrow(String id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
-    }
-
-    private String resolveItemName(LineRequest lr) {
-        if (lr.itemName() != null && !lr.itemName().isBlank()) return lr.itemName();
-        throw new IllegalArgumentException("itemName is required on each line");
     }
 
     private String nextInvoiceNumber(String posId, String docType) {
@@ -256,6 +298,18 @@ public class InvoiceService {
             case "inv_cancelled" -> "Anulada";
             case "inv_overdue"   -> "Vencida";
             default              -> statusId;
+        };
+    }
+
+    private String statusCodeToId(String code) {
+        return switch (code.toUpperCase()) {
+            case "DRAFT"     -> "inv_draft";
+            case "ISSUED"    -> "inv_issued";
+            case "PARTIAL"   -> "inv_partial";
+            case "PAID"      -> "inv_paid";
+            case "CANCELLED" -> "inv_cancelled";
+            case "OVERDUE"   -> "inv_overdue";
+            default          -> null;
         };
     }
 }

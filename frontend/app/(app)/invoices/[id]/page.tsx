@@ -1,10 +1,12 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { invoiceApi, InvoiceResponse } from "@/lib/api/invoice";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 
@@ -19,12 +21,19 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const qc = useQueryClient();
+  const [cancelReason, setCancelReason] = useState("");
+  const [showCancelForm, setShowCancelForm] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice", id],
     queryFn: () => invoiceApi.get(id),
+  });
+
+  const { data: history } = useQuery({
+    queryKey: ["invoice-history", id],
+    queryFn: () => invoiceApi.statusHistory(id),
+    enabled: !!invoice,
   });
 
   const confirmMutation = useMutation({
@@ -32,14 +41,17 @@ export default function InvoiceDetailPage() {
     onSuccess: (updated) => {
       qc.setQueryData(["invoice", id], updated);
       qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoice-history", id] });
     },
   });
 
-  const cancel = useMutation({
-    mutationFn: () => invoiceApi.cancel(id),
+  const cancelMutation = useMutation({
+    mutationFn: () => invoiceApi.cancel(id, cancelReason || undefined),
     onSuccess: (updated) => {
       qc.setQueryData(["invoice", id], updated);
       qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoice-history", id] });
+      setShowCancelForm(false);
     },
   });
 
@@ -55,9 +67,8 @@ export default function InvoiceDetailPage() {
     return <div className="p-8 text-muted-foreground">Factura no encontrada.</div>;
   }
 
-  const statusStyle =
-    STATUS_STYLES[invoice.statusCode] ?? "bg-gray-100 text-gray-700";
-  const isDraft = invoice.statusCode === "DRAFT";
+  const statusStyle = STATUS_STYLES[invoice.statusCode] ?? "bg-gray-100 text-gray-700";
+  const isDraft   = invoice.statusCode === "DRAFT";
   const canCancel = !["CANCELLED", "PAID"].includes(invoice.statusCode);
 
   return (
@@ -75,9 +86,7 @@ export default function InvoiceDetailPage() {
             {invoice.invoiceNumber ?? "Factura borrador"}
           </h1>
           <div className="mt-1 flex items-center gap-2">
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyle}`}
-            >
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyle}`}>
               {invoice.statusName}
             </span>
             <span className="text-xs text-muted-foreground">
@@ -95,14 +104,11 @@ export default function InvoiceDetailPage() {
               {confirmMutation.isPending ? "Emitiendo..." : "Emitir factura"}
             </Button>
           )}
-          {canCancel && (
+          {canCancel && !showCancelForm && (
             <Button
               variant="ghost"
               className="text-destructive"
-              onClick={() => {
-                if (confirm("¿Anular esta factura?")) cancel.mutate();
-              }}
-              disabled={cancel.isPending}
+              onClick={() => setShowCancelForm(true)}
             >
               Anular
             </Button>
@@ -110,18 +116,47 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Confirm/cancel errors */}
+      {/* Error banners */}
       {confirmMutation.isError && (
         <p className="mb-4 text-sm text-destructive">
           {(confirmMutation.error as { response?: { data?: { detail?: string } } })
             ?.response?.data?.detail ?? "Error al emitir."}
         </p>
       )}
-      {cancel.isError && (
-        <p className="mb-4 text-sm text-destructive">
-          {(cancel.error as { response?: { data?: { detail?: string } } })
-            ?.response?.data?.detail ?? "Error al anular."}
-        </p>
+
+      {/* Cancel form */}
+      {showCancelForm && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+          <p className="text-sm font-medium">Anular factura</p>
+          <Input
+            placeholder="Motivo de anulación (opcional)"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+          />
+          {cancelMutation.isError && (
+            <p className="text-xs text-destructive">
+              {(cancelMutation.error as { response?: { data?: { detail?: string } } })
+                ?.response?.data?.detail ?? "Error al anular."}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? "Anulando..." : "Confirmar anulación"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setShowCancelForm(false); setCancelReason(""); }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="rounded-lg border bg-card shadow-sm divide-y">
@@ -163,18 +198,13 @@ export default function InvoiceDetailPage() {
                       </p>
                     )}
                     {line.taxes.map((t) => (
-                      <span
-                        key={t.taxCode}
-                        className="text-xs text-muted-foreground"
-                      >
-                        {t.taxCode} {(Number(t.rate) * 100).toFixed(0)}%
+                      <span key={t.taxCode} className="text-xs text-blue-600">
+                        {t.taxCode} {(Number(t.rate) * 100).toFixed(0)}%{" "}
                       </span>
                     ))}
                   </td>
                   <td className="py-2 text-right">{Number(line.quantity).toFixed(2)}</td>
-                  <td className="py-2 text-right">
-                    ${Number(line.unitPrice).toFixed(2)}
-                  </td>
+                  <td className="py-2 text-right">${Number(line.unitPrice).toFixed(2)}</td>
                   <td className="py-2 text-right">
                     {Number(line.discountAmount) > 0
                       ? `-$${Number(line.discountAmount).toFixed(2)}`
@@ -199,18 +229,44 @@ export default function InvoiceDetailPage() {
           <div className="ml-auto max-w-xs space-y-1 text-sm">
             <TotalRow label="Subtotal" value={invoice.subtotalAmount} />
             {Number(invoice.discountAmount) > 0 && (
-              <TotalRow
-                label="Descuentos"
-                value={-Number(invoice.discountAmount)}
-              />
+              <TotalRow label="Descuentos" value={invoice.discountAmount} negate />
             )}
             <TotalRow label="Impuestos" value={invoice.taxAmount} />
             <Separator className="my-1" />
             <TotalRow label="Total" value={invoice.totalAmount} bold />
             <TotalRow label="Abonado" value={invoice.paidAmount} />
-            <TotalRow label="Saldo" value={invoice.balanceAmount} />
+            <TotalRow label="Saldo pendiente" value={invoice.balanceAmount} />
           </div>
         </div>
+
+        {/* Status history */}
+        {history && history.length > 0 && (
+          <div className="p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+              Historial de estado
+            </p>
+            <div className="space-y-2">
+              {history.map((h, i) => (
+                <div key={i} className="flex items-start gap-3 text-sm">
+                  <div className="mt-1 h-2 w-2 rounded-full bg-muted-foreground/40 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">
+                      {h.oldStatusCode
+                        ? `${h.oldStatusCode} → ${h.newStatusCode}`
+                        : h.newStatusCode}
+                    </span>
+                    {h.reason && (
+                      <span className="ml-2 text-muted-foreground">— {h.reason}</span>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {h.changedBy} · {new Date(h.changedAt).toLocaleString("es-SV")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -229,16 +285,19 @@ function TotalRow({
   label,
   value,
   bold,
+  negate,
 }: {
   label: string;
   value: number | string;
   bold?: boolean;
+  negate?: boolean;
 }) {
-  const cls = bold ? "font-bold text-base" : "";
+  const n = Number(value);
+  const display = negate ? `-$${n.toFixed(2)}` : `$${n.toFixed(2)}`;
   return (
-    <div className={`flex justify-between ${cls}`}>
+    <div className={`flex justify-between ${bold ? "font-bold text-base border-t pt-1" : ""}`}>
       <span className={bold ? "" : "text-muted-foreground"}>{label}</span>
-      <span>${Math.abs(Number(value)).toFixed(2)}</span>
+      <span>{display}</span>
     </div>
   );
 }
