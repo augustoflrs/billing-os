@@ -60,6 +60,7 @@ app:
     max-retry-attempts: ${DTE_MAX_RETRIES:5}
     retry-base-delay-seconds: ${DTE_RETRY_BASE_DELAY:30}
     transmission-cron: ${DTE_CRON:*/5 * * * * *}
+    certificate-password: ${DTE_CERTIFICATE_PASSWORD:}
 
 logging:
   level:
