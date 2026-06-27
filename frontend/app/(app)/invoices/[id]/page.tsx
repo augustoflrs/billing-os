@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { invoiceApi, InvoiceResponse } from "@/lib/api/invoice";
+import { DteStatusPanel } from "@/components/DteStatusPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -268,6 +269,9 @@ export default function InvoiceDetailPage() {
           </div>
         )}
       </div>
+
+      {/* DTE status + event timeline */}
+      <DteStatusPanel invoiceId={id} invoiceStatusCode={invoice.statusCode} />
     </div>
   );
 }
