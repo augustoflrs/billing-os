@@ -79,6 +79,14 @@ public class InvoiceDto {
             int totalPages
     ) {}
 
+    public record StatusHistoryEntry(
+            String oldStatusCode,
+            String newStatusCode,
+            String changedBy,
+            java.time.Instant changedAt,
+            String reason
+    ) {}
+
     public record InvoiceSummary(
             String id,
             String invoiceNumber,
