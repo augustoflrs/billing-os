@@ -46,9 +46,30 @@ export interface EconomicActivityOption {
   name: string;
 }
 
+export interface TaxDefinitionOption {
+  code: string;
+  name: string;
+  rate: number;
+}
+
+export interface DocumentTypeOption {
+  code: string;
+  name: string;
+}
+
 export const catalogApi = {
   economicActivities: () =>
     apiClient
       .get<EconomicActivityOption[]>("/catalogs/economic-activities")
+      .then((r) => r.data),
+
+  taxDefinitions: () =>
+    apiClient
+      .get<TaxDefinitionOption[]>("/catalogs/tax-definitions")
+      .then((r) => r.data),
+
+  documentTypes: () =>
+    apiClient
+      .get<DocumentTypeOption[]>("/catalogs/document-types")
       .then((r) => r.data),
 };
