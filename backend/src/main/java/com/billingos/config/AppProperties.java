@@ -46,14 +46,16 @@ public class AppProperties {
 
     public static class Dte {
         private String mhApiUrl;
+        private String mhApiPath               = "/api/fesv/recepciondte";
         private int    maxRetryAttempts        = 5;
         private int    retryBaseDelaySeconds   = 30;
         private String transmissionCron        = "*/5 * * * * *";
-        /** Password for the active DTE PKCS12 keystore. Set via DTE_CERTIFICATE_PASSWORD env var. */
         private String certificatePassword     = "";
 
         public String getMhApiUrl()              { return mhApiUrl; }
         public void setMhApiUrl(String v)             { this.mhApiUrl = v; }
+        public String getMhApiPath()             { return mhApiPath; }
+        public void setMhApiPath(String v)            { this.mhApiPath = v; }
         public int getMaxRetryAttempts()         { return maxRetryAttempts; }
         public void setMaxRetryAttempts(int v)        { this.maxRetryAttempts = v; }
         public int getRetryBaseDelaySeconds()    { return retryBaseDelaySeconds; }
