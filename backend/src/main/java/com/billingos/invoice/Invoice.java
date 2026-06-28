@@ -34,6 +34,9 @@ public class Invoice {
     @Column(name = "invoice_date", nullable = false)
     private Instant invoiceDate;
 
+    @Column(name = "due_date")
+    private Instant dueDate;
+
     @Column(name = "subtotal_amount", nullable = false, precision = 18, scale = 4)
     private BigDecimal subtotalAmount = BigDecimal.ZERO;
 

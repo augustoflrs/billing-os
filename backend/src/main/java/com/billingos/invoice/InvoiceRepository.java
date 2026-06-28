@@ -34,4 +34,12 @@ public interface InvoiceRepository extends JpaRepository<Invoice, String> {
             Pageable pageable);
 
     List<Invoice> findTop10ByCurrentStatusIdNotOrderByInvoiceDateDesc(String statusId);
+
+    @Query("""
+        SELECT i FROM Invoice i
+        WHERE i.currentStatusId IN ('inv_issued', 'inv_partial')
+          AND i.dueDate IS NOT NULL
+          AND i.dueDate < :now
+        """)
+    List<Invoice> findOverdue(@Param("now") Instant now);
 }

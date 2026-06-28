@@ -55,6 +55,9 @@ app:
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:admin123}
 
+  invoice:
+    default-due-days: ${INVOICE_DUE_DAYS:30}
+
   dte:
     mh-api-url: ${MH_API_URL:https://apitest.dtes.mh.gob.sv}
     mh-api-path: ${MH_API_PATH:/api/fesv/recepciondte}

@@ -11,6 +11,7 @@ import com.billingos.common.status.EntityStatusHistoryRepository;
 import com.billingos.common.status.StatusMachineService;
 import com.billingos.customer.Customer;
 import com.billingos.customer.CustomerRepository;
+import com.billingos.config.AppProperties;
 import com.billingos.dte.DteInvalidationService;
 import com.billingos.invoice.InvoiceDto.*;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class InvoiceService {
     private final OutboxEventRepository outboxRepository;
     private final EntityStatusHistoryRepository statusHistoryRepository;
     private final DteInvalidationService dteInvalidationService;
+    private final AppProperties appProperties;
 
     @Transactional
     public InvoiceResponse create(CreateInvoiceRequest req) {
@@ -134,6 +136,8 @@ public class InvoiceService {
         String number = nextInvoiceNumber(invoice.getPointOfSaleId(), invoice.getDocumentTypeCode());
         invoice.setInvoiceNumber(number);
         invoice.setCurrentStatusId(ISSUED_STATUS_ID);
+        int dueDays = appProperties.getInvoice().getDefaultDueDays();
+        invoice.setDueDate(invoice.getInvoiceDate().plus(dueDays, java.time.temporal.ChronoUnit.DAYS));
         invoiceRepository.save(invoice);
 
         // Write outbox event for DTE pipeline (T-12–T-14)
@@ -268,7 +272,7 @@ public class InvoiceService {
                 i.getId(), i.getInvoiceNumber(),
                 i.getCustomerId(), customerName,
                 i.getPointOfSaleId(), i.getDocumentTypeCode(),
-                i.getInvoiceDate(),
+                i.getInvoiceDate(), i.getDueDate(),
                 i.getSubtotalAmount(), i.getDiscountAmount(),
                 i.getTaxAmount(), i.getTotalAmount(),
                 i.getPaidAmount(), i.getBalanceAmount(),
@@ -281,7 +285,7 @@ public class InvoiceService {
         return new InvoiceSummary(
                 i.getId(), i.getInvoiceNumber(),
                 i.getCustomerId(), customerName,
-                i.getDocumentTypeCode(), i.getInvoiceDate(),
+                i.getDocumentTypeCode(), i.getInvoiceDate(), i.getDueDate(),
                 i.getTotalAmount(), i.getBalanceAmount(),
                 statusCode(i.getCurrentStatusId()), statusName(i.getCurrentStatusId())
         );
