@@ -3,6 +3,7 @@ package com.billingos.dte;
 import com.billingos.common.status.StatusMachineService;
 import com.billingos.company.CompanyRepository;
 import com.billingos.config.AppProperties;
+import com.billingos.invoice.InvoicePdfService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class DteTransmissionService {
     private final StatusMachineService          statusMachine;
     private final CompanyRepository             companyRepository;
     private final AppProperties                 appProperties;
+    private final InvoicePdfService             pdfService;
 
     /**
      * Returns all dte_queued DTEs whose queue entry is ready for a transmission attempt
@@ -105,6 +107,12 @@ public class DteTransmissionService {
         writeEvent(dte.getId(), "ACCEPTANCE", r.requestJson(), r.responseJson());
 
         log.info("DTE {} ACCEPTED by MH — sello={}", dte.getId(), r.selloRecibido());
+
+        try {
+            pdfService.generateAndStore(dte.getInvoiceId());
+        } catch (Exception e) {
+            log.error("PDF generation failed for invoice {} — non-fatal: {}", dte.getInvoiceId(), e.getMessage(), e);
+        }
     }
 
     private void handleRejected(InvoiceDte dte, DteTransmissionQueue queue, MhResponse r) {

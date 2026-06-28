@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; padding: 32px; }
+    .header { border-bottom: 2px solid #1e3a5f; padding-bottom: 16px; margin-bottom: 20px; }
+    .company-name { font-size: 20px; font-weight: bold; color: #1e3a5f; }
+    .company-meta { font-size: 10px; color: #555; margin-top: 4px; }
+    .invoice-title { text-align: right; }
+    .invoice-title h2 { font-size: 18px; color: #1e3a5f; }
+    .invoice-title .invoice-number { font-size: 13px; font-weight: bold; color: #333; margin-top: 4px; }
+    .header-row { display: table; width: 100%; }
+    .header-col { display: table-cell; vertical-align: top; }
+    .section { margin-bottom: 20px; }
+    .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase;
+                     color: #666; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 8px; }
+    .meta-grid { display: table; width: 100%; }
+    .meta-row { display: table-row; }
+    .meta-label { display: table-cell; color: #666; padding: 2px 8px 2px 0; width: 140px; }
+    .meta-value { display: table-cell; font-weight: bold; padding: 2px 0; }
+    table.lines { width: 100%; border-collapse: collapse; }
+    table.lines th { background: #1e3a5f; color: #fff; padding: 6px 8px; text-align: left; font-size: 10px; }
+    table.lines th.num { text-align: right; }
+    table.lines td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+    table.lines td.num { text-align: right; }
+    table.lines tr:nth-child(even) td { background: #f8f8f8; }
+    .totals { float: right; width: 260px; margin-top: 12px; }
+    .totals table { width: 100%; border-collapse: collapse; }
+    .totals td { padding: 4px 8px; }
+    .totals td:last-child { text-align: right; }
+    .totals tr.total-row td { font-weight: bold; font-size: 13px; border-top: 2px solid #1e3a5f; }
+    .dte-box { background: #f0f4ff; border: 1px solid #c0ccee; border-radius: 4px;
+               padding: 10px 14px; margin-top: 24px; font-size: 10px; }
+    .dte-box .dte-title { font-weight: bold; font-size: 11px; color: #1e3a5f; margin-bottom: 6px; }
+    .clearfix::after { content: ""; display: table; clear: both; }
+    .footer { margin-top: 32px; border-top: 1px solid #ddd; padding-top: 10px;
+              font-size: 9px; color: #999; text-align: center; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-row">
+    <div class="header-col">
+      <div class="company-name" th:text="${company.legalName}">Empresa S.A. de C.V.</div>
+      <div class="company-meta">
+        NIT: <span th:text="${company.nit}">0000-000000-000-0</span>
+        <span th:if="${company.nrc}"> · NRC: <span th:text="${company.nrc}">00000</span></span>
+        <span th:if="${company.phone}"> · Tel: <span th:text="${company.phone}"></span></span>
+        <span th:if="${company.email}"> · <span th:text="${company.email}"></span></span>
+      </div>
+    </div>
+    <div class="header-col invoice-title">
+      <h2>FACTURA</h2>
+      <div class="invoice-number" th:text="${invoice.invoiceNumber}">F-0001</div>
+      <div style="font-size:10px; color:#666; margin-top:4px;"
+           th:text="${#temporals.format(invoiceDateLocal, 'dd/MM/yyyy', #locale)}">01/01/2025</div>
+    </div>
+  </div>
+</div>
+
+<!-- Customer + Invoice meta -->
+<div class="section">
+  <div style="display:table;width:100%">
+    <div style="display:table-cell;width:50%;padding-right:20px;vertical-align:top">
+      <div class="section-title">Cliente</div>
+      <div class="meta-grid">
+        <div class="meta-row">
+          <div class="meta-label">Nombre</div>
+          <div class="meta-value" th:text="${customer.legalName}">Cliente</div>
+        </div>
+        <div class="meta-row" th:if="${customer.email}">
+          <div class="meta-label">Email</div>
+          <div class="meta-value" th:text="${customer.email}"></div>
+        </div>
+        <div class="meta-row" th:if="${customer.phone}">
+          <div class="meta-label">Teléfono</div>
+          <div class="meta-value" th:text="${customer.phone}"></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:table-cell;width:50%;vertical-align:top">
+      <div class="section-title">Información del documento</div>
+      <div class="meta-grid">
+        <div class="meta-row">
+          <div class="meta-label">Tipo documento</div>
+          <div class="meta-value" th:text="${invoice.documentTypeCode}">FE</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Fecha emisión</div>
+          <div class="meta-value"
+               th:text="${#temporals.format(invoiceDateLocal, 'dd/MM/yyyy HH:mm', #locale)}">01/01/2025</div>
+        </div>
+        <div class="meta-row" th:if="${dte.controlNumber}">
+          <div class="meta-label">Número de control</div>
+          <div class="meta-value" th:text="${dte.controlNumber}">DTE-01-XXX</div>
+        </div>
+        <div class="meta-row" th:if="${dte.generationCode}">
+          <div class="meta-label">Código generación</div>
+          <div class="meta-value" style="font-size:9px" th:text="${dte.generationCode}">UUID</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Line items -->
+<div class="section">
+  <div class="section-title">Detalle de productos/servicios</div>
+  <table class="lines">
+    <thead>
+      <tr>
+        <th style="width:40%">Descripción</th>
+        <th class="num" style="width:10%">Cant.</th>
+        <th class="num" style="width:13%">P. Unitario</th>
+        <th class="num" style="width:13%">Descuento</th>
+        <th class="num" style="width:12%">Impuesto</th>
+        <th class="num" style="width:12%">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="line : ${invoice.lines}">
+        <td>
+          <div th:text="${line.itemName}">Servicio</div>
+          <div th:if="${line.itemDescription}" style="font-size:9px;color:#666"
+               th:text="${line.itemDescription}"></div>
+        </td>
+        <td class="num" th:text="${#numbers.formatDecimal(line.quantity, 1, 2)}">1.00</td>
+        <td class="num" th:text="'$' + ${#numbers.formatDecimal(line.unitPrice, 1, 2)}">$0.00</td>
+        <td class="num"
+            th:text="${line.discountAmount > 0} ? '-$' + ${#numbers.formatDecimal(line.discountAmount, 1, 2)} : '—'">—</td>
+        <td class="num"
+            th:text="${line.taxAmount > 0} ? '$' + ${#numbers.formatDecimal(line.taxAmount, 1, 2)} : '—'">—</td>
+        <td class="num" th:text="'$' + ${#numbers.formatDecimal(line.totalAmount, 1, 2)}">$0.00</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Totals -->
+<div class="clearfix">
+  <div class="totals">
+    <table>
+      <tr>
+        <td style="color:#666">Subtotal</td>
+        <td th:text="'$' + ${#numbers.formatDecimal(invoice.subtotalAmount, 1, 2)}">$0.00</td>
+      </tr>
+      <tr th:if="${invoice.discountAmount > 0}">
+        <td style="color:#666">Descuentos</td>
+        <td th:text="'-$' + ${#numbers.formatDecimal(invoice.discountAmount, 1, 2)}">-$0.00</td>
+      </tr>
+      <tr>
+        <td style="color:#666">Impuestos</td>
+        <td th:text="'$' + ${#numbers.formatDecimal(invoice.taxAmount, 1, 2)}">$0.00</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total</td>
+        <td th:text="'$' + ${#numbers.formatDecimal(invoice.totalAmount, 1, 2)}">$0.00</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- DTE MH box -->
+<div class="dte-box" style="margin-top:80px">
+  <div class="dte-title">Sello electrónico del Ministerio de Hacienda</div>
+  <div class="meta-grid">
+    <div class="meta-row">
+      <div class="meta-label">Código MH</div>
+      <div class="meta-value" th:text="${dte.mhCode}">—</div>
+    </div>
+    <div class="meta-row">
+      <div class="meta-label">Aceptado el</div>
+      <div class="meta-value"
+           th:text="${acceptedAtLocal != null} ? ${#temporals.format(acceptedAtLocal, 'dd/MM/yyyy HH:mm', #locale)} : '—'">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  Documento tributario electrónico generado por Billing OS · El Salvador
+</div>
+
+</body>
+</html>

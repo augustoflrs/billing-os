@@ -157,4 +157,9 @@ export const invoiceApi = {
     apiClient
       .post<DteStatusResponse>(`/invoices/${id}/dte/retry`)
       .then((r) => r.data),
+
+  pdfUrl: (id: string) =>
+    apiClient
+      .get<{ url: string }>(`/invoices/${id}/pdf`)
+      .then((r) => r.data.url),
 };
