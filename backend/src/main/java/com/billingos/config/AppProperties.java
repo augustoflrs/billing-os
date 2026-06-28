@@ -51,6 +51,7 @@ public class AppProperties {
         private int    retryBaseDelaySeconds   = 30;
         private String transmissionCron        = "*/5 * * * * *";
         private String certificatePassword     = "";
+        private String mhInvalidationPath      = "/api/fesv/anulardte";
 
         public String getMhApiUrl()              { return mhApiUrl; }
         public void setMhApiUrl(String v)             { this.mhApiUrl = v; }
@@ -64,5 +65,7 @@ public class AppProperties {
         public void setTransmissionCron(String v)     { this.transmissionCron = v; }
         public String getCertificatePassword()   { return certificatePassword; }
         public void setCertificatePassword(String v)  { this.certificatePassword = v; }
+        public String getMhInvalidationPath()    { return mhInvalidationPath; }
+        public void setMhInvalidationPath(String v)   { this.mhInvalidationPath = v; }
     }
 }

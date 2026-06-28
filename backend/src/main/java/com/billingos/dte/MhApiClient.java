@@ -84,6 +84,49 @@ public class MhApiClient {
         }
     }
 
+    /**
+     * Submits a signed invalidation (anulación) document to MH.
+     */
+    @SuppressWarnings("unchecked")
+    public MhResponse submitInvalidation(Map<String, Object> anulacionJson, String companyNit) {
+        AppProperties.Dte cfg = appProperties.getDte();
+        String certPassword = cfg.getCertificatePassword();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("nit",         companyNit);
+        body.put("activo",      true);
+        body.put("passwordPri", certPassword);
+        body.put("dteJson",     anulacionJson);
+
+        RestClient client = restClientBuilder.baseUrl(cfg.getMhApiUrl()).build();
+
+        try {
+            Map<String, Object> responseMap = client.post()
+                    .uri(cfg.getMhInvalidationPath())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(Map.class);
+
+            return parseMhResponse(responseMap, body);
+
+        } catch (HttpClientErrorException e) {
+            log.warn("MH invalidation 4xx for NIT {}: {} {}", companyNit, e.getStatusCode(), e.getResponseBodyAsString());
+            Map<String, Object> errMap = safeParseJson(e.getResponseBodyAsString());
+            return MhResponse.rejected(
+                    errMap.getOrDefault("codigoMsg", "4XX").toString(),
+                    errMap.getOrDefault("descripcionMsg", e.getMessage()).toString(),
+                    body, errMap);
+        } catch (HttpServerErrorException e) {
+            return MhResponse.transientError("MH HTTP " + e.getStatusCode(), body);
+        } catch (ResourceAccessException e) {
+            return MhResponse.transientError("MH unreachable: " + e.getMessage(), body);
+        } catch (Exception e) {
+            log.error("Unexpected error calling MH invalidation for NIT {}: {}", companyNit, e.getMessage(), e);
+            return MhResponse.transientError("Unexpected: " + e.getMessage(), body);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private MhResponse parseMhResponse(Map<String, Object> raw, Map<String, Object> requestBody) {
         if (raw == null) return MhResponse.transientError("Empty response from MH", requestBody);

@@ -104,6 +104,7 @@ public class DteService {
             case "dte_rejected"    -> "REJECTED";
             case "dte_contingency" -> "CONTINGENCY";
             case "dte_blocked"     -> "BLOCKED";
+            case "dte_invalidated" -> "INVALIDATED";
             default                -> id;
         };
     }
@@ -118,6 +119,7 @@ public class DteService {
             case "dte_rejected"    -> "Rechazado";
             case "dte_contingency" -> "Contingencia";
             case "dte_blocked"     -> "Bloqueado";
+            case "dte_invalidated" -> "Invalidado";
             default                -> id;
         };
     }
@@ -133,6 +135,7 @@ public class DteService {
             case "CONTINGENCY_EXIT"   -> "Salió de contingencia";
             case "INVALIDATION"       -> "Anulación enviada";
             case "INVALIDATION_ACCEPTED" -> "Anulación aceptada";
+            case "INVALIDATION_ERROR"    -> "Error en anulación";
             default                   -> code;
         };
     }
