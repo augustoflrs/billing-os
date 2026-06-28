@@ -56,7 +56,7 @@ app:
     password: ${ADMIN_PASSWORD:admin123}
 
   dte:
-    mh-api-url: ${MH_API_URL:https://apidte.mh.gob.sv}
+    mh-api-url: ${MH_API_URL:https://apitest.dtes.mh.gob.sv}
     mh-api-path: ${MH_API_PATH:/api/fesv/recepciondte}
     max-retry-attempts: ${DTE_MAX_RETRIES:5}
     retry-base-delay-seconds: ${DTE_RETRY_BASE_DELAY:30}

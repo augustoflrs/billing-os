@@ -87,6 +87,27 @@ export interface StatusHistoryEntry {
   reason?: string;
 }
 
+export interface DteStatusResponse {
+  id: string;
+  controlNumber: string;
+  generationCode: string;
+  statusCode: string;
+  statusName: string;
+  mhCode?: string;
+  mhMessage?: string;
+  submittedAt?: string;
+  acceptedAt?: string;
+  attemptCount: number;
+  nextAttemptAt?: string;
+}
+
+export interface DteEventResponse {
+  id: string;
+  eventTypeCode: string;
+  eventLabel: string;
+  eventTime: string;
+}
+
 export const invoiceApi = {
   list: (
     search = "",
@@ -120,5 +141,20 @@ export const invoiceApi = {
   statusHistory: (id: string) =>
     apiClient
       .get<StatusHistoryEntry[]>(`/invoices/${id}/status-history`)
+      .then((r) => r.data),
+
+  dte: (id: string) =>
+    apiClient
+      .get<DteStatusResponse>(`/invoices/${id}/dte`)
+      .then((r) => (r.status === 204 ? null : r.data)),
+
+  dteEvents: (id: string) =>
+    apiClient
+      .get<DteEventResponse[]>(`/invoices/${id}/dte/events`)
+      .then((r) => r.data),
+
+  dteRetry: (id: string) =>
+    apiClient
+      .post<DteStatusResponse>(`/invoices/${id}/dte/retry`)
       .then((r) => r.data),
 };

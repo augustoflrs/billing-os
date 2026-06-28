@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { invoiceApi, InvoiceResponse } from "@/lib/api/invoice";
+import { paymentApi, PaymentResponse } from "@/lib/api/payment";
+import { DteStatusPanel } from "@/components/DteStatusPanel";
+import { PaymentModal } from "@/components/PaymentModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +27,7 @@ export default function InvoiceDetailPage() {
   const qc = useQueryClient();
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelForm, setShowCancelForm] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice", id],
@@ -33,6 +37,12 @@ export default function InvoiceDetailPage() {
   const { data: history } = useQuery({
     queryKey: ["invoice-history", id],
     queryFn: () => invoiceApi.statusHistory(id),
+    enabled: !!invoice,
+  });
+
+  const { data: payments } = useQuery({
+    queryKey: ["invoice-payments", id],
+    queryFn: () => paymentApi.listByInvoice(id),
     enabled: !!invoice,
   });
 
@@ -68,8 +78,10 @@ export default function InvoiceDetailPage() {
   }
 
   const statusStyle = STATUS_STYLES[invoice.statusCode] ?? "bg-gray-100 text-gray-700";
-  const isDraft   = invoice.statusCode === "DRAFT";
-  const canCancel = !["CANCELLED", "PAID"].includes(invoice.statusCode);
+  const isDraft    = invoice.statusCode === "DRAFT";
+  const canCancel  = !["CANCELLED", "PAID", "DRAFT"].includes(invoice.statusCode);
+  const canPay     = ["ISSUED", "PARTIAL", "OVERDUE"].includes(invoice.statusCode)
+                     && Number(invoice.balanceAmount) > 0;
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -102,6 +114,11 @@ export default function InvoiceDetailPage() {
               disabled={confirmMutation.isPending}
             >
               {confirmMutation.isPending ? "Emitiendo..." : "Emitir factura"}
+            </Button>
+          )}
+          {canPay && (
+            <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
+              Registrar pago
             </Button>
           )}
           {canCancel && !showCancelForm && (
@@ -239,6 +256,39 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
 
+        {/* Payment history */}
+        {payments && payments.length > 0 && (
+          <div className="p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+              Pagos recibidos
+            </p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-muted-foreground text-xs">
+                  <th className="pb-2 text-left font-medium">Fecha</th>
+                  <th className="pb-2 text-left font-medium">Método</th>
+                  <th className="pb-2 text-left font-medium">Referencia</th>
+                  <th className="pb-2 text-right font-medium">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-b last:border-0">
+                    <td className="py-2">
+                      {new Date(p.paymentDate).toLocaleDateString("es-SV")}
+                    </td>
+                    <td className="py-2">{p.paymentMethodCode}</td>
+                    <td className="py-2 text-muted-foreground">{p.referenceNumber ?? "—"}</td>
+                    <td className="py-2 text-right font-medium">
+                      ${Number(p.amount).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Status history */}
         {history && history.length > 0 && (
           <div className="p-6">
@@ -268,6 +318,19 @@ export default function InvoiceDetailPage() {
           </div>
         )}
       </div>
+
+      {/* DTE status + event timeline */}
+      <DteStatusPanel invoiceId={id} invoiceStatusCode={invoice.statusCode} />
+
+      {/* Payment modal */}
+      {showPaymentModal && (
+        <PaymentModal
+          invoiceId={id}
+          invoiceNumber={invoice.invoiceNumber}
+          balance={Number(invoice.balanceAmount)}
+          onClose={() => setShowPaymentModal(false)}
+        />
+      )}
     </div>
   );
 }
