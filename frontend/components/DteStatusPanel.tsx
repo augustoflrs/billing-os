@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoiceApi, DteStatusResponse, DteEventResponse } from "@/lib/api/invoice";
 import { Button } from "@/components/ui/button";
 
-const FINAL_STATUSES = new Set(["ACCEPTED", "REJECTED", "CONTINGENCY", "BLOCKED"]);
+const FINAL_STATUSES = new Set(["ACCEPTED", "REJECTED", "CONTINGENCY", "BLOCKED", "INVALIDATED"]);
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT:       "bg-gray-100 text-gray-600",
@@ -14,6 +14,7 @@ const STATUS_STYLES: Record<string, string> = {
   REJECTED:    "bg-red-100 text-red-700",
   CONTINGENCY: "bg-orange-100 text-orange-800",
   BLOCKED:     "bg-gray-200 text-gray-600",
+  INVALIDATED: "bg-purple-100 text-purple-800",
 };
 
 const EVENT_ICONS: Record<string, string> = {
@@ -25,6 +26,7 @@ const EVENT_ICONS: Record<string, string> = {
   CONTINGENCY_EXIT:      "↩",
   INVALIDATION:          "⊘",
   INVALIDATION_ACCEPTED: "⊘✓",
+  INVALIDATION_ERROR:    "⊘✗",
 };
 
 function formatTs(ts?: string) {

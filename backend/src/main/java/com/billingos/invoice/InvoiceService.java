@@ -11,6 +11,7 @@ import com.billingos.common.status.EntityStatusHistoryRepository;
 import com.billingos.common.status.StatusMachineService;
 import com.billingos.customer.Customer;
 import com.billingos.customer.CustomerRepository;
+import com.billingos.dte.DteInvalidationService;
 import com.billingos.invoice.InvoiceDto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,7 @@ public class InvoiceService {
     private final StatusMachineService statusMachine;
     private final OutboxEventRepository outboxRepository;
     private final EntityStatusHistoryRepository statusHistoryRepository;
+    private final DteInvalidationService dteInvalidationService;
 
     @Transactional
     public InvoiceResponse create(CreateInvoiceRequest req) {
@@ -153,6 +155,16 @@ public class InvoiceService {
     @Transactional
     public InvoiceResponse cancel(String id, String reason) {
         Invoice invoice = getOrThrow(id);
+
+        // Attempt DTE invalidation with MH before cancelling the invoice.
+        // Non-fatal: if MH rejects or is unreachable, we still cancel locally.
+        try {
+            dteInvalidationService.invalidate(id, reason);
+        } catch (Exception e) {
+            // Log but don't block the cancellation
+            org.slf4j.LoggerFactory.getLogger(getClass())
+                    .error("DTE invalidation failed for invoice {}: {}", id, e.getMessage(), e);
+        }
 
         statusMachine.transition(ENTITY_TYPE, id,
                 invoice.getCurrentStatusId(), CANCELLED_STATUS_ID,

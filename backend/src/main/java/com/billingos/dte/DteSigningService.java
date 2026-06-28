@@ -99,6 +99,28 @@ public class DteSigningService {
         }
     }
 
+    /**
+     * Signs an arbitrary DTE payload (e.g. anulación) and returns the map with the
+     * {@code firma} field added. Uses the company's active certificate.
+     *
+     * Throws {@link CertificateNotAvailableException} if no certificate is available.
+     */
+    public Map<String, Object> signPayload(Map<String, Object> payload) {
+        String companyId = companyRepository.findAll().stream()
+                .findFirst().map(com.billingos.company.Company::getId)
+                .orElseThrow(() -> new IllegalStateException("No company configured"));
+
+        Certificate cert = certificateRepository
+                .findFirstByCompanyIdAndActiveTrueOrderByValidToDesc(companyId)
+                .filter(c -> c.getValidTo().isAfter(OffsetDateTime.now()))
+                .orElseThrow(() -> new CertificateNotAvailableException("No active certificate for company " + companyId));
+
+        String firma = computeFirma(payload, cert);
+        Map<String, Object> signed = new java.util.LinkedHashMap<>(payload);
+        signed.put("firma", firma);
+        return signed;
+    }
+
     // ─── private ─────────────────────────────────────────────────────────────
 
     private String computeFirma(Map<String, Object> dteJson, Certificate cert) {
