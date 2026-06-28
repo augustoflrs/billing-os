@@ -204,6 +204,12 @@ export default function InvoiceDetailPage() {
             value={new Date(invoice.invoiceDate).toLocaleString("es-SV")}
           />
           <Field label="Tipo documento" value={invoice.documentTypeCode} />
+          {invoice.dueDate && (
+            <Field
+              label="Fecha vencimiento"
+              value={new Date(invoice.dueDate).toLocaleDateString("es-SV")}
+            />
+          )}
         </div>
 
         {/* Lines */}

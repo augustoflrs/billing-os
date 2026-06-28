@@ -29,6 +29,7 @@ export interface InvoiceResponse {
   pointOfSaleId: string;
   documentTypeCode: string;
   invoiceDate: string;
+  dueDate?: string;
   subtotalAmount: number;
   discountAmount: number;
   taxAmount: number;
@@ -47,6 +48,7 @@ export interface InvoiceSummary {
   customerName: string;
   documentTypeCode: string;
   invoiceDate: string;
+  dueDate?: string;
   totalAmount: number;
   balanceAmount: number;
   statusCode: string;

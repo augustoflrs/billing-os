@@ -11,12 +11,22 @@ public class AppProperties {
     private Jwt   jwt   = new Jwt();
     private Dte   dte   = new Dte();
 
+    private Invoice invoice = new Invoice();
+
     public Minio getMinio() { return minio; }
     public void  setMinio(Minio minio) { this.minio = minio; }
     public Jwt   getJwt()   { return jwt; }
     public void  setJwt(Jwt jwt)       { this.jwt = jwt; }
     public Dte   getDte()   { return dte; }
     public void  setDte(Dte dte)       { this.dte = dte; }
+    public Invoice getInvoice() { return invoice; }
+    public void    setInvoice(Invoice invoice) { this.invoice = invoice; }
+
+    public static class Invoice {
+        private int defaultDueDays = 30;
+        public int getDefaultDueDays()         { return defaultDueDays; }
+        public void setDefaultDueDays(int v)   { this.defaultDueDays = v; }
+    }
 
     public static class Minio {
         private String endpoint;
