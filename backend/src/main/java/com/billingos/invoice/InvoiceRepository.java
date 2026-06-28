@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, String> {
 
@@ -31,4 +32,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, String> {
             @Param("from")       Instant from,
             @Param("to")         Instant to,
             Pageable pageable);
+
+    List<Invoice> findTop10ByCurrentStatusIdNotOrderByInvoiceDateDesc(String statusId);
 }
