@@ -3,6 +3,7 @@ package com.billingos.certificate;
 import com.billingos.config.AppProperties;
 import io.minio.*;
 import io.minio.errors.MinioException;
+import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,21 @@ public class StorageService {
             throw new StorageException("Failed to retrieve " + objectKey + ": " + e.getMessage(), e);
         } catch (Exception e) {
             throw new StorageException("Unexpected storage error: " + e.getMessage(), e);
+        }
+    }
+
+    public String presignedUrl(String objectKey, int expirySeconds) {
+        try {
+            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(bucket())
+                    .object(objectKey)
+                    .expiry(expirySeconds)
+                    .build());
+        } catch (MinioException e) {
+            throw new StorageException("Failed to generate presigned URL for " + objectKey + ": " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new StorageException("Unexpected error generating presigned URL: " + e.getMessage(), e);
         }
     }
 

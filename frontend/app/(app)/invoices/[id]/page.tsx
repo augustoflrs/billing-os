@@ -46,6 +46,14 @@ export default function InvoiceDetailPage() {
     enabled: !!invoice,
   });
 
+  const { data: pdfUrl } = useQuery({
+    queryKey: ["invoice-pdf", id],
+    queryFn: () => invoiceApi.pdfUrl(id),
+    enabled: !!invoice && !["DRAFT", "CANCELLED"].includes(invoice.statusCode),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   const confirmMutation = useMutation({
     mutationFn: () => invoiceApi.confirm(id),
     onSuccess: (updated) => {
@@ -115,6 +123,16 @@ export default function InvoiceDetailPage() {
             >
               {confirmMutation.isPending ? "Emitiendo..." : "Emitir factura"}
             </Button>
+          )}
+          {pdfUrl && (
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+            >
+              Descargar PDF
+            </a>
           )}
           {canPay && (
             <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
